@@ -3,10 +3,10 @@ import type {} from "@codemirror/view";
 import { createHighlight } from "./extension";
 
 export async function createHighlightCommand(
-	editor: Editor,
-	expandSelection = true,
+    editor: Editor,
+    expandSelection = true,
 ) {
-	let selectedText = editor.getSelection();
+    let selectedText = editor.getSelection();
 
 	if (!selectedText) {
 		new Notice(`No text selected`);
@@ -16,12 +16,26 @@ export async function createHighlightCommand(
 	const sameLine =
 		editor.getCursor("from").line === editor.getCursor("to").line;
 
-	if (!sameLine) {
-		new Notice(`Only same line highlights are supported. Sorry!`);
-		return false;
-	}
+    if (!sameLine) {
+        new Notice(`Only same line highlights are supported. Sorry!`);
+        return false;
+    }
 
-	const selectionContainsHighlight = selectedText.includes("==");
+    // Do not operate inside fenced code blocks (``` ... ```)
+    const lineIndex = editor.getCursor("from").line;
+    let inFence = false;
+    for (let i = 0; i <= lineIndex; i++) {
+        const line = editor.getLine(i) ?? "";
+        if (/^\s*```/.test(line)) {
+            inFence = !inFence;
+        }
+    }
+    if (inFence) {
+        new Notice(`Highlighting is disabled inside code blocks.`);
+        return false;
+    }
+
+    const selectionContainsHighlight = selectedText.includes("==");
 
 	if (selectionContainsHighlight) {
 		return false;
@@ -34,9 +48,9 @@ export async function createHighlightCommand(
 	editor.blur();
 	document.getSelection()?.empty();
 
-	// @ts-expect-error, not typed
-	const editorView = editor.cm as EditorView;
-	createHighlight(editorView);
+    // @ts-expect-error, not typed
+    const editorView = editor.cm as EditorView;
+    createHighlight(editorView);
 }
 
 function expandSelectionBoundary(editor: Editor) {

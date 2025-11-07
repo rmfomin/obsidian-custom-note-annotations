@@ -1,7 +1,7 @@
 {
-	"id": "note-annotations",
-	"name": "Note Annotations",
-	"version": "1.0.1",
+	"id": "custom-note-annotations",
+	"name": "_Custom Note Annotations",
+	"version": "1.0.2",
 	"minAppVersion": "1.7.0",
 	"description": "Add multi-colored highlights and comments to your notes",
 	"author": "Jan Beck",

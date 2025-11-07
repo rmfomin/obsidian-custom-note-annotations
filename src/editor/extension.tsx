@@ -213,41 +213,80 @@ class HighlightWidget extends WidgetType {
 }
 
 function findHighlightsAndComments(doc: Text): HighlightMatch[] {
-	const matches: HighlightMatch[] = [];
-	const docText = doc.toString();
+    const matches: HighlightMatch[] = [];
+    const docText = doc.toString();
 
-	const annotatedRegex = /==([^=]+)==<!--([\s\S]*?)-->/gm;
-	const highlightRegex = /==(?!<!--)([^=]+)==(?!<!--)/gm;
+    const annotatedRegex = /==([^=]+)==<!--([\s\S]*?)-->/gm;
+    const highlightRegex = /==(?!<!--)([^=]+)==(?!<!--)/gm;
 
-	// Find annotated highlights
-	let match;
-	while ((match = annotatedRegex.exec(docText)) !== null) {
-		const comment = match[2];
-		const matchedColor = matchColor(comment);
-		const hasComment = comment.trim() !== `@${matchedColor}`;
+    // Compute fenced code block (``` ... ```) ranges to ignore
+    const fenceRanges: { from: number; to: number }[] = [];
+    {
+        let inFence = false;
+        let fenceStart = 0;
+        // Track current absolute position while iterating lines
+        let pos = 0;
+        const lines = docText.split("\n");
+        for (const line of lines) {
+            const isFence = /^\s*```/.test(line);
+            if (!inFence && isFence) {
+                inFence = true;
+                fenceStart = pos; // start at beginning of fence line
+            } else if (inFence && isFence) {
+                // Closing fence line: include the entire line and trailing newline
+                const end = pos + line.length + 1; // +1 for the newline that follows (if any)
+                fenceRanges.push({ from: fenceStart, to: Math.min(end, docText.length) });
+                inFence = false;
+            }
+            // advance position (+1 for the newline)
+            pos += line.length + 1;
+        }
+        // If file ends while still inside a fence, close it at EOF
+        if (inFence) {
+            fenceRanges.push({ from: fenceStart, to: docText.length });
+        }
+    }
 
-		matches.push({
-			from: match.index,
-			to: match.index + match[0].length,
-			highlightText: match[1],
-			fullMatch: match[0],
-			hasColor: matchedColor !== null,
-			hasComment,
-			comment,
-		});
-	}
+    const overlapsFence = (from: number, to: number) =>
+        fenceRanges.some((r) => !(to <= r.from || from >= r.to));
 
-	// Find standalone highlights
-	while ((match = highlightRegex.exec(docText)) !== null) {
-		matches.push({
-			from: match.index,
-			to: match.index + match[0].length,
-			highlightText: match[1],
-			fullMatch: match[0],
-			hasComment: false,
-			hasColor: false,
-		});
-	}
+    // Find annotated highlights
+    let match;
+    while ((match = annotatedRegex.exec(docText)) !== null) {
+        const comment = match[2];
+        const matchedColor = matchColor(comment);
+        const hasComment = comment.trim() !== `@${matchedColor}`;
+
+        const from = match.index;
+        const to = match.index + match[0].length;
+        if (overlapsFence(from, to)) continue;
+
+        matches.push({
+            from,
+            to,
+            highlightText: match[1],
+            fullMatch: match[0],
+            hasColor: matchedColor !== null,
+            hasComment,
+            comment,
+        });
+    }
+
+    // Find standalone highlights
+    while ((match = highlightRegex.exec(docText)) !== null) {
+        const from = match.index;
+        const to = match.index + match[0].length;
+        if (overlapsFence(from, to)) continue;
+
+        matches.push({
+            from,
+            to,
+            highlightText: match[1],
+            fullMatch: match[0],
+            hasComment: false,
+            hasColor: false,
+        });
+    }
 
 	return matches;
 }
